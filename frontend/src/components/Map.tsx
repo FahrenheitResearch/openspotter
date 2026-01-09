@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMap, GeoJSON, LayersControl } from 'react-leaflet'
 import L from 'leaflet'
 import { useQuery } from '@tanstack/react-query'
 import { fetchActiveSpotters, fetchReports } from '../services/api'
@@ -89,6 +89,42 @@ interface ReportFeature {
   }
 }
 
+// Fetch WFO boundaries from NWS MapServer
+async function fetchWFOBoundaries() {
+  const url = 'https://mapservices.weather.noaa.gov/static/rest/services/nws_reference_maps/nws_reference_map/MapServer/1/query?where=1%3D1&outFields=CWA,WFO,City,State&returnGeometry=true&outSR=4326&f=geojson'
+
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error('Failed to fetch WFO boundaries')
+  }
+  return response.json()
+}
+
+// WFO boundary styling
+function wfoStyle() {
+  return {
+    color: '#ff6b35',
+    weight: 2,
+    opacity: 0.8,
+    fillColor: '#ff6b35',
+    fillOpacity: 0.05,
+  }
+}
+
+// WFO popup content
+function onEachWFO(feature: any, layer: L.Layer) {
+  if (feature.properties) {
+    const { CWA, WFO, City, State } = feature.properties
+    layer.bindPopup(`
+      <div class="text-sm">
+        <p class="font-bold text-orange-600">${CWA || WFO}</p>
+        <p>${City || 'Unknown'}, ${State || ''}</p>
+        <p class="text-xs text-gray-500">Weather Forecast Office</p>
+      </div>
+    `)
+  }
+}
+
 function LocationUpdater({
   onUpdate,
 }: {
@@ -170,6 +206,7 @@ export default function Map({
 }: MapProps) {
   const [spotters, setSpotters] = useState<SpotterFeature[]>([])
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+  const [showWFO, setShowWFO] = useState(false)
   const mapRef = useRef<L.Map | null>(null)
 
   // Fetch active spotters
@@ -190,6 +227,14 @@ export default function Map({
       }),
     refetchInterval: 60000, // Refresh every minute
     enabled: showReports,
+  })
+
+  // Fetch WFO boundaries (only when enabled)
+  const { data: wfoData } = useQuery({
+    queryKey: ['wfo-boundaries'],
+    queryFn: fetchWFOBoundaries,
+    enabled: showWFO,
+    staleTime: 1000 * 60 * 60 * 24, // Cache for 24 hours
   })
 
   // Update spotters from query
@@ -216,6 +261,10 @@ export default function Map({
 
   const defaultCenter: [number, number] = userLocation || [39.8283, -98.5795]
 
+  const onEachWFOFeature = useCallback((feature: any, layer: L.Layer) => {
+    onEachWFO(feature, layer)
+  }, [])
+
   return (
     <div className="h-full w-full relative">
       <MapContainer
@@ -231,13 +280,43 @@ export default function Map({
           }
         }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          <LayersControl.BaseLayer checked name="OpenStreetMap">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Satellite">
+            <TileLayer
+              attribution='&copy; Esri'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.Overlay name="WFO Boundaries">
+            <GeoJSON
+              key={showWFO ? 'wfo-loaded' : 'wfo-empty'}
+              data={wfoData || { type: 'FeatureCollection', features: [] }}
+              style={wfoStyle}
+              onEachFeature={onEachWFOFeature}
+            />
+          </LayersControl.Overlay>
+        </LayersControl>
 
         <MapController center={userLocation || undefined} />
         <LocationUpdater onUpdate={setSpotters as any} />
+
+        {/* WFO Layer (when data loaded via overlay) */}
+        {showWFO && wfoData && (
+          <GeoJSON
+            key="wfo-boundaries"
+            data={wfoData}
+            style={wfoStyle}
+            onEachFeature={onEachWFOFeature}
+          />
+        )}
 
         {/* Spotter markers */}
         {showSpotters &&
@@ -312,6 +391,23 @@ export default function Map({
           ))}
       </MapContainer>
 
+      {/* Layer toggle panel */}
+      <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-lg z-[1000] text-sm">
+        <h4 className="font-bold mb-2">Layers</h4>
+        <label className="flex items-center space-x-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showWFO}
+            onChange={(e) => setShowWFO(e.target.checked)}
+            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+          />
+          <span className="flex items-center">
+            <span className="w-3 h-3 border-2 border-orange-500 mr-2"></span>
+            WFO Boundaries
+          </span>
+        </label>
+      </div>
+
       {/* Legend */}
       <div className="absolute bottom-4 left-4 bg-white p-3 rounded-lg shadow-lg z-[1000] text-sm">
         <h4 className="font-bold mb-2">Legend</h4>
@@ -340,6 +436,12 @@ export default function Map({
             <div className="w-4 h-4 rounded bg-blue-600"></div>
             <span>Flooding</span>
           </div>
+          {showWFO && (
+            <div className="flex items-center space-x-2 pt-1 border-t">
+              <div className="w-4 h-4 border-2 border-orange-500 bg-orange-500/10"></div>
+              <span>WFO Area</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
