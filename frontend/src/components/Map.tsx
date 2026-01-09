@@ -91,7 +91,7 @@ interface ReportFeature {
 
 // Fetch WFO boundaries from NWS MapServer
 async function fetchWFOBoundaries() {
-  const url = 'https://mapservices.weather.noaa.gov/static/rest/services/nws_reference_maps/nws_reference_map/MapServer/1/query?where=1%3D1&outFields=CWA,WFO,City,State&returnGeometry=true&outSR=4326&f=geojson'
+  const url = 'https://mapservices.weather.noaa.gov/static/rest/services/nws_reference_maps/nws_reference_map/MapServer/1/query?where=1%3D1&outFields=cwa,wfo,city,state,citystate,region&returnGeometry=true&outSR=4326&f=geojson'
 
   const response = await fetch(url)
   if (!response.ok) {
@@ -114,11 +114,11 @@ function wfoStyle() {
 // WFO popup content
 function onEachWFO(feature: any, layer: L.Layer) {
   if (feature.properties) {
-    const { CWA, WFO, City, State } = feature.properties
+    const { cwa, wfo, city, state, citystate } = feature.properties
     layer.bindPopup(`
       <div class="text-sm">
-        <p class="font-bold text-orange-600">${CWA || WFO}</p>
-        <p>${City || 'Unknown'}, ${State || ''}</p>
+        <p class="font-bold text-orange-600">NWS ${cwa || wfo}</p>
+        <p>${citystate || `${city || 'Unknown'}, ${state || ''}`}</p>
         <p class="text-xs text-gray-500">Weather Forecast Office</p>
       </div>
     `)
