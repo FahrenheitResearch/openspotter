@@ -39,7 +39,7 @@ An open-source storm spotter network platform for tracking severe weather spotte
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/openspotter/openspotter.git
+   git clone https://github.com/FahrenheitResearch/openspotter.git
    cd openspotter
    ```
 
@@ -53,15 +53,15 @@ An open-source storm spotter network platform for tracking severe weather spotte
    docker-compose up -d
    ```
 
-4. Run database migrations:
+4. Seed demo data (optional):
    ```bash
-   docker-compose exec backend alembic upgrade head
+   docker-compose exec backend python seed_demo.py
    ```
 
 5. Access the application:
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/api/v1/docs
+   - API Docs: http://localhost:8000/docs
 
 ### Local Development
 
@@ -73,11 +73,11 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Set up database (requires PostgreSQL and Redis running)
-alembic upgrade head
-
-# Run development server
+# Run development server (uses SQLite by default)
 uvicorn app.main:app --reload
+
+# Seed demo data (optional)
+python seed_demo.py
 ```
 
 #### Frontend
@@ -94,13 +94,16 @@ npm run dev
 openspotter/
 ├── backend/
 │   ├── app/
-│   │   ├── api/           # API routes
-│   │   │   └── v1/        # Versioned API endpoints
-│   │   ├── core/          # Configuration, security, deps
 │   │   ├── models/        # SQLAlchemy models
+│   │   ├── routers/       # API routes
 │   │   ├── schemas/       # Pydantic schemas
-│   │   └── services/      # Business logic
-│   ├── alembic/           # Database migrations
+│   │   ├── services/      # Business logic
+│   │   ├── utils/         # Dependencies and helpers
+│   │   ├── websocket/     # WebSocket handlers
+│   │   ├── config.py      # Configuration
+│   │   ├── database.py    # Database setup
+│   │   └── main.py        # FastAPI app
+│   ├── seed_demo.py       # Demo data script
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/

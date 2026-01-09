@@ -101,14 +101,14 @@ export default function Layout() {
             <p>OpenSpotter - Open Source Spotter Network</p>
             <div className="flex items-center space-x-4 mt-2 sm:mt-0">
               <a
-                href="https://github.com/openspotter/openspotter"
+                href="https://github.com/FahrenheitResearch/openspotter"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-gray-700"
               >
                 GitHub
               </a>
-              <a href="/api/v1/docs" className="hover:text-gray-700">
+              <a href="http://localhost:8000/docs" className="hover:text-gray-700">
                 API Docs
               </a>
             </div>
