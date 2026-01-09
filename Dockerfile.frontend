@@ -1,0 +1,18 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY frontend/package*.json ./
+RUN npm install
+
+# Copy application code
+COPY frontend/ .
+
+# Create non-root user
+RUN adduser -D -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 5173
+
+CMD ["npm", "run", "dev", "--", "--host"]

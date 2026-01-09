@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #213547;
+  background-color: #f8fafc;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Leaflet map overrides */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+}
+
+/* Custom marker styles */
+.spotter-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-weight: bold;
+  font-size: 12px;
+  color: white;
+}
+
+.spotter-marker.spotter {
+  background-color: #3b82f6;
+}
+
+.spotter-marker.verified_spotter {
+  background-color: #10b981;
+}
+
+.spotter-marker.coordinator {
+  background-color: #8b5cf6;
+}
+
+.spotter-marker.admin {
+  background-color: #ef4444;
+}
+
+/* Report marker styles */
+.report-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: 2px solid white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.report-marker.tornado {
+  background-color: #dc2626;
+}
+
+.report-marker.hail {
+  background-color: #7c3aed;
+}
+
+.report-marker.wind_damage {
+  background-color: #0891b2;
+}
+
+.report-marker.flooding {
+  background-color: #2563eb;
+}
+
+.report-marker.wildfire {
+  background-color: #ea580c;
+}
+
+.report-marker.other {
+  background-color: #6b7280;
+}
