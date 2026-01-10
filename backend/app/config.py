@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     s3_bucket: str = "openspotter-media"
     s3_region: str = "us-east-1"
 
+    # Twitter/X API (optional, for posting reports)
+    twitter_api_key: Optional[str] = None
+    twitter_api_secret: Optional[str] = None
+    twitter_access_token: Optional[str] = None
+    twitter_access_token_secret: Optional[str] = None
+    twitter_bearer_token: Optional[str] = None
+
+    # Media storage
+    media_storage_path: str = "./media"
+    max_media_size_mb: int = 10
+
     # Location settings
     location_history_ttl_hours: int = 24
     location_update_interval_seconds: int = 10

@@ -1,8 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
+import os
+import uuid as uuid_lib
+import aiofiles
+import httpx
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
@@ -19,13 +23,118 @@ from app.schemas.report import (
     ReporterInfo,
 )
 from app.utils.deps import get_current_user, require_coordinator
+from app.config import get_settings
+from app.services.wfo_twitter import format_report_tweet, get_wfo_mention
 
+settings = get_settings()
 router = APIRouter()
+
+
+async def get_wfo_for_location(lat: float, lon: float) -> Optional[str]:
+    """Get WFO code for a given lat/lon from NWS API."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.weather.gov/points/{lat},{lon}",
+                headers={"User-Agent": "OpenSpotter/1.0"},
+                timeout=5.0,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("properties", {}).get("cwa")
+    except Exception as e:
+        print(f"Failed to get WFO for location: {e}")
+    return None
+
+
+async def post_to_twitter(
+    report: Report,
+    wfo_code: Optional[str],
+    media_urls: list[str],
+):
+    """Background task to post report to Twitter."""
+    # Check if Twitter is configured
+    if not settings.twitter_bearer_token:
+        print("Twitter not configured - skipping post")
+        return
+
+    try:
+        # Format tweet text
+        tweet_text = format_report_tweet(
+            report_type=report.type.value,
+            description=report.description or "",
+            latitude=report.latitude,
+            longitude=report.longitude,
+            wfo_code=wfo_code,
+            severity=report.severity,
+            hail_size=report.hail_size,
+            wind_speed=report.wind_speed,
+        )
+
+        # Post to Twitter (simplified - full implementation would use OAuth)
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.twitter.com/2/tweets",
+                headers={
+                    "Authorization": f"Bearer {settings.twitter_bearer_token}",
+                    "Content-Type": "application/json",
+                },
+                json={"text": tweet_text},
+                timeout=10.0,
+            )
+            if response.status_code in [200, 201]:
+                print(f"Posted report to Twitter: {response.json()}")
+            else:
+                print(f"Twitter post failed: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"Twitter post error: {e}")
+
+
+@router.post("/upload-media")
+async def upload_media(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """Upload media file for a report."""
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4", "video/quicktime"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File type not allowed. Allowed types: {', '.join(allowed_types)}",
+        )
+
+    # Check file size
+    content = await file.read()
+    if len(content) > settings.max_media_size_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Max size: {settings.max_media_size_mb}MB",
+        )
+
+    # Create media directory if needed
+    media_dir = settings.media_storage_path
+    os.makedirs(media_dir, exist_ok=True)
+
+    # Generate unique filename
+    ext = os.path.splitext(file.filename)[1] if file.filename else ".jpg"
+    filename = f"{uuid_lib.uuid4()}{ext}"
+    filepath = os.path.join(media_dir, filename)
+
+    # Save file
+    async with aiofiles.open(filepath, "wb") as f:
+        await f.write(content)
+
+    # Return URL (in production, this would be a CDN/S3 URL)
+    media_url = f"/media/{filename}"
+
+    return {"url": media_url, "filename": filename, "size": len(content)}
 
 
 @router.post("", response_model=ReportResponse, status_code=status.HTTP_201_CREATED)
 async def create_report(
     data: ReportCreate,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -43,11 +152,22 @@ async def create_report(
         wind_speed=data.wind_speed,
         tornado_rating=data.tornado_rating,
         event_time=data.event_time or datetime.utcnow(),
+        media_urls=data.media_urls or [],
     )
 
     db.add(report)
     await db.flush()
     await db.refresh(report)
+
+    # Get WFO for location and optionally post to Twitter
+    if data.post_to_twitter:
+        wfo_code = await get_wfo_for_location(data.latitude, data.longitude)
+        background_tasks.add_task(
+            post_to_twitter,
+            report,
+            wfo_code,
+            data.media_urls or [],
+        )
 
     # Load user relationship for response
     await db.refresh(report, ["user"])

@@ -18,6 +18,8 @@ class ReportCreate(BaseModel):
     wind_speed: Optional[int] = Field(None, ge=0, le=350)  # mph
     tornado_rating: Optional[str] = Field(None, pattern="^EF[0-5]$")
     event_time: Optional[datetime] = None
+    media_urls: Optional[list[str]] = Field(default_factory=list)
+    post_to_twitter: bool = False  # Whether to post to Twitter with WFO mention
 
 
 class ReportUpdate(BaseModel):

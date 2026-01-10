@@ -92,8 +92,22 @@ export const createReport = async (data: {
   severity?: number
   hail_size?: number
   wind_speed?: number
+  media_urls?: string[]
+  post_to_twitter?: boolean
 }) => {
   const response = await api.post('/reports', data)
+  return response.data
+}
+
+export const uploadMedia = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await api.post('/reports/upload-media', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
   return response.data
 }
 

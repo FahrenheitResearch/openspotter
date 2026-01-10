@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import redis.asyncio as redis
 
 from app.config import get_settings
@@ -91,6 +93,11 @@ app.include_router(reports.router, prefix="/reports", tags=["Weather Reports"])
 app.include_router(locations.router, prefix="/locations", tags=["Locations"])
 app.include_router(messages.router, prefix="/messages", tags=["Messages"])
 app.include_router(api_v1.router, prefix="/api/v1", tags=["Public API v1"])
+
+# Mount static files for media uploads
+media_dir = settings.media_storage_path
+os.makedirs(media_dir, exist_ok=True)
+app.mount("/media", StaticFiles(directory=media_dir), name="media")
 
 
 @app.get("/", tags=["Health"])
